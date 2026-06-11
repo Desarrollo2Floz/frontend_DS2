@@ -7,7 +7,7 @@ import { ProtectedRoute } from './components/routing/ProtectedRoute';
 // Páginas de Autenticación
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
-
+import CreatePage from './pages/CreatePage'
 import HoyPage from './pages/HoyPage';
 
 import { AuthProvider } from './context/AuthContext'; 
@@ -32,8 +32,8 @@ function App() {
             {/* Redirige la raíz "/" a "/hoy" */}
             <Route path="/" element={<Navigate to="/hoy" replace />} />
             
-            {/* La página principal que ya tenemos */}
             <Route path="/hoy" element={<HoyPage />} />
+            <Route path="/crear" element={<CreatePage />} />
             
           </Route>
 
