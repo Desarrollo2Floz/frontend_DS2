@@ -5,11 +5,12 @@ import MainLayout from './components/layout/MainLayout';
 import { ProtectedRoute } from './components/routing/ProtectedRoute';
 
 // Páginas de Autenticación
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
 import CreatePage from './pages/CreatePage'
 import ActivityPage from './pages/ActivityPage'
-import HoyPage from './pages/HoyPage';
+import ActivityDetailPage from './pages/ActivityDetailPage'
+import HoyPage from './pages/HoyPage'
 
 import { AuthProvider } from './context/AuthContext'; 
 
@@ -35,6 +36,7 @@ function App() {
             
             <Route path="/hoy" element={<HoyPage />} />
             <Route path="/crear" element={<CreatePage />} />
+            <Route path="/actividad/:id" element={< ActivityDetailPage />} />
             <Route path="/actividades" element={<ActivityPage />} />
             
           </Route>

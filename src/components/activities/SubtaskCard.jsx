@@ -1,5 +1,4 @@
 import { Trash2, Pencil, Calendar, Clock } from 'lucide-react'
-import { getStoredPostponeNote } from '../../utils/postponeNote'
 
 const STATUS_MAP = {
   pending: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-700' },
@@ -8,9 +7,8 @@ const STATUS_MAP = {
   overdue: { label: 'Vencida', color: 'bg-red-100 text-red-700' },
 }
 
-const SubtaskCard = ({ subtask, onEdit, onDelete, deleting, isDailyCapacityConflict = false }) => {
+const SubtaskCard = ({ subtask, onEdit, onDelete, deleting = false }) => {
   const status = STATUS_MAP[subtask.status] || STATUS_MAP.pending
-  const postponedNote = (subtask?.note && String(subtask.note).trim()) || getStoredPostponeNote(subtask?.id)
 
   const formatDate = (dateStr) => {
     if (!dateStr) return null
@@ -48,23 +46,11 @@ const SubtaskCard = ({ subtask, onEdit, onDelete, deleting, isDailyCapacityConfl
           </span>
         )}
         {subtask.estimated_hours && (
-          isDailyCapacityConflict ? (
-            <span className="flex items-center gap-1">
-              ⚠️ {subtask.estimated_hours}h estimadas
-            </span>
-          ) : (
-            <span className="flex items-center gap-1">
-              <Clock size={12} /> {subtask.estimated_hours}h estimadas
-            </span>
-          )
+          <span className="flex items-center gap-1">
+            <Clock size={12} /> {subtask.estimated_hours}h estimadas
+          </span>
         )}
       </div>
-
-      {subtask.status === 'postponed' && Boolean(postponedNote && String(postponedNote).trim()) && (
-        <div className="w-full px-4 py-3 rounded-lg bg-[#F8FAFC] border border-dashed border-zinc-300 text-zinc-500 text-sm font-semibold text-center whitespace-pre-wrap">
-          {String(postponedNote).trim()}
-        </div>
-      )}
 
       {/* Acciones */}
       <div className="flex items-center gap-2 pt-1 border-t border-gray-100">
