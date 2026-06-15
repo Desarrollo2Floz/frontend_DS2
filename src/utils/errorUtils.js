@@ -1,8 +1,22 @@
 export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error al actualizar.') => {
     let errorMessage = defaultMessage;
+    let isOverloadConflict = false;
+    let conflictMessage = null;
+    let conflictPayload = null;
 
     if (error.response?.data) {
         const data = error.response.data;
+
+        // Detectar conflicto de capacidad diaria (status 409)
+        if (error.response.status === 409) {
+            // El backend devuelve: { detail: "Capacidad diaria excedida", conflict: { ... } }
+            if (data.detail && typeof data.detail === 'string' && data.detail.includes('capacidad diaria')) {
+                isOverloadConflict = true;
+                conflictMessage = data.detail;
+                conflictPayload = data.conflict || null;
+                errorMessage = data.detail;
+            }
+        }
 
         if (data.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0) {
             const firstKey = Object.keys(data.errors)[0];
@@ -27,6 +41,9 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
     }
 
     return {
-        errorMessage
+        errorMessage,
+        isOverloadConflict,
+        conflictMessage,
+        conflictPayload
     };
 };

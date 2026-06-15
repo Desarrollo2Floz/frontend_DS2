@@ -99,7 +99,7 @@ export const deleteSubtask = async (id) => {
     return response.data
 }
 
-// GET /api/subtasks/today/
+// GET /api/today/
 export const getTodaySubtasks = async (params = {}) => {
     const query = new URLSearchParams()
     if (params.course) query.append('course', params.course)
@@ -107,14 +107,14 @@ export const getTodaySubtasks = async (params = {}) => {
     if (params.days !== undefined && params.days !== '') query.append('days', params.days)
     
     const queryStr = query.toString()
-    const url = queryStr ? `/subtasks/today/?${queryStr}` : '/subtasks/today/'
+    const url = queryStr ? `/today/?${queryStr}` : '/today/'
 
     try {
         const response = await api.get(url)
         return response.data.data  // { overdue: [...], today: [...], upcoming: [...] }
     } catch (err) {
         console.error("Error en getTodaySubtasks:", err)
-        // El backend actual no expone /subtasks/today/ -> fallback sin tocar backend.
+        // Fallback: si el endpoint no existe, construir desde /activities/
         if (err?.response?.status === 404) {
             const activities = await getActivities()
             return buildTodaySubtasksFromActivities(activities, params)
