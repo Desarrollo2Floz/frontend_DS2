@@ -107,7 +107,7 @@ export const getTodaySubtasks = async (params = {}) => {
     if (params.days !== undefined && params.days !== '') query.append('days', params.days)
     
     const queryStr = query.toString()
-    const url = queryStr ? `/today/?${queryStr}` : '/today/'
+    const url = queryStr ? `/subtasks/today/?${queryStr}` : '/subtasks/today/'
 
     try {
         const response = await api.get(url)
