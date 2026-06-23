@@ -3,6 +3,7 @@ import { Plus, Calendar, ListTodo, BarChart2, LogIn, LogOut, Loader2, User, Chev
 import { useAuth } from "../../context/useAuth";
 import { useState } from "react";
 import logo from '../../assets/bb51bc4eb2882c49a664ff7c04a240151df066fc.png';
+import CapacitySettings from "./CapacitySettings";
 
 const navItems = [
     { to: '/crear', label: 'Crear Actividad', icon: Plus },
@@ -135,6 +136,9 @@ function Sidebar({ isExpanded, setIsExpanded }) {
                             )}
                         </>
                     )}
+
+                    {/* Componente de Configuración de Capacidad */}
+                    <CapacitySettings isExpanded={isExpanded} />
                 </div>
             ) : (
                 <div className="mt-auto border-t border-slate-700/50 pt-6 px-2 flex justify-center">
