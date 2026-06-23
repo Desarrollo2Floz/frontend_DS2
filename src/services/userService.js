@@ -25,7 +25,7 @@ const writeStoredDailyCapacity = (hours) => {
 export const userService = {
     getDailyCapacity: async () => {
         try {
-            const response = await api.get('/users/capacity/');
+            const response = await api.get('/capacity/');
             const backendVal = response?.data?.data?.daily_limit_hours ?? response?.data?.daily_limit_hours;
             const hours = Number(backendVal);
             if (Number.isFinite(hours)) {
@@ -44,7 +44,7 @@ export const userService = {
 
     updateDailyCapacity: async (hours) => {
         try {
-            const response = await api.put('/users/capacity/', { daily_limit_hours: hours });
+            const response = await api.put('/capacity/', { daily_limit_hours: hours });
             const backendVal = response?.data?.data?.daily_limit_hours ?? response?.data?.daily_limit_hours;
             const saved = Number(backendVal);
             if (Number.isFinite(saved)) {

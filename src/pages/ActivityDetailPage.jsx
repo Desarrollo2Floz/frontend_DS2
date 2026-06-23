@@ -7,6 +7,7 @@ import { updateActivity, deleteActivity } from '../services/activityService'
 import SubtaskCard from '../components/activities/SubtaskCard'
 import SubtaskForm from '../components/activities/SubtaskForm'
 import Modal from '../components/Modal'
+import { syncDailyCapacityConflictWithBackend } from '../utils/dailyCapacityConflict'
 import { parseOverloadError } from '../utils/errorUtils'
 
 const ACTIVITY_TYPES_MAP = {
@@ -170,6 +171,7 @@ function ActivityDetailPage() {
         setDeleting(true)
         try {
           await deleteActivity(id)
+          await syncDailyCapacityConflictWithBackend()
           setModalConfig({
             isOpen: true,
             type: 'success',
@@ -203,39 +205,10 @@ function ActivityDetailPage() {
         onConfirm: null,
       })
     } else if (result?.error && result?.rawError) {
-      const { errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.')
-      setModalConfig({
-        isOpen: true,
-        type: 'error',
-        title: 'Error',
-        message: errorMessage,
-        onConfirm: null,
-      })
-      } else {
+      const { isOverloadConflict, conflictMessage, errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.')
+      if (isOverloadConflict) {
+        const textMessage = typeof conflictMessage === 'object' ? conflictMessage?.message : conflictMessage;
         setModalConfig({
-          isOpen: true,
-          type: 'error',
-          title: 'Error',
-          message: errorMessage,
-          onConfirm: null,
-        })
-      }
-    }
-
-  const handleEditSubtask = async (data) => {
-    const result = await editSubtask(editingSubtask.id, data)
-    if (result === true) {
-      setEditingSubtask(null)
-      setModalConfig({
-        isOpen: true,
-        type: 'success',
-        title: '¡Subtarea editada!',
-        message: 'La subtarea fue editada correctamente.',
-        onConfirm: null,
-      })
-    } else if (result?.error && result?.rawError) {
-      const { errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al editar la subtarea. Inténtelo de nuevo.')
-      setModalConfig({
           isOpen: true,
           type: 'error',
           title: '¡Cuidado! Límite de capacidad excedido',
@@ -251,7 +224,57 @@ function ActivityDetailPage() {
           onConfirm: null,
         })
       }
+    } else {
+      setModalConfig({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.',
+        onConfirm: null,
+      })
     }
+  }
+
+  const handleEditSubtask = async (data) => {
+    const result = await editSubtask(editingSubtask.id, data)
+    if (result === true) {
+      setEditingSubtask(null)
+      setModalConfig({
+        isOpen: true,
+        type: 'success',
+        title: '¡Subtarea editada!',
+        message: 'La subtarea fue editada correctamente.',
+        onConfirm: null,
+      })
+    } else if (result?.error && result?.rawError) {
+      const { isOverloadConflict, conflictMessage, errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al editar la subtarea. Inténtelo de nuevo.')
+      if (isOverloadConflict) {
+        setModalConfig({
+          isOpen: true,
+          type: 'error',
+          title: '¡Cuidado! Límite de capacidad excedido',
+          message: conflictMessage || errorMessage,
+          onConfirm: null,
+        })
+      } else {
+        setModalConfig({
+          isOpen: true,
+          type: 'error',
+          title: 'Error',
+          message: errorMessage,
+          onConfirm: null,
+        })
+      }
+    } else {
+      setModalConfig({
+        isOpen: true,
+        type: 'error',
+        title: 'Error',
+        message: 'Ha ocurrido un error al editar la subtarea. Inténtelo de nuevo.',
+        onConfirm: null,
+      })
+    }
+  }
 
   const handleDeleteSubtask = async (subtaskId) => {
     setModalConfig({
@@ -500,7 +523,9 @@ function ActivityDetailPage() {
 
         {/* Error de subtareas */}
         {subtaskError && (
-          <p className="text-red-500 text-sm mb-4">{subtaskError}</p>
+          <p className="text-red-500 text-sm mb-4">
+            {typeof subtaskError === 'string' ? subtaskError : subtaskError?.message || 'Error en las subtareas'}
+          </p>
         )}
 
         {/* Formulario crear */}
