@@ -9,6 +9,8 @@ import SubtaskForm from '../components/activities/SubtaskForm'
 import Modal from '../components/Modal'
 import { syncDailyCapacityConflictWithBackend } from '../utils/dailyCapacityConflict'
 import { parseOverloadError } from '../utils/errorUtils'
+import { calcActivityProgress } from '../utils/progressUtils'
+import ActivityProgressSummary from '../components/progress/ActivityProgressSummary'
 
 const ACTIVITY_TYPES_MAP = {
   exam: 'Examen',
@@ -501,6 +503,15 @@ function ActivityDetailPage() {
           </>
         )}
       </div>
+
+      {/* Progreso US-10 */}
+      {!isEditing && (
+        <div className="mb-6">
+          <ActivityProgressSummary
+            {...calcActivityProgress(subtasks)}
+          />
+        </div>
+      )}
 
       {/* Subtareas */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">

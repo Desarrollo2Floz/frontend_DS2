@@ -11,6 +11,7 @@ import CreatePage from './pages/CreatePage'
 import ActivityPage from './pages/ActivityPage'
 import ActivityDetailPage from './pages/ActivityDetailPage'
 import HoyPage from './pages/HoyPage'
+import ProgressPage from './pages/ProgressPage'
 
 import { AuthProvider } from './context/AuthContext'; 
 
@@ -38,6 +39,7 @@ function App() {
             <Route path="/crear" element={<CreatePage />} />
             <Route path="/actividad/:id" element={< ActivityDetailPage />} />
             <Route path="/actividades" element={<ActivityPage />} />
+            <Route path="/progreso" element={<ProgressPage />} />
             
           </Route>
 
