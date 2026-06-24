@@ -5,7 +5,11 @@ import { updateSubtask } from '../services/subtaskService';
 import { getLocalTodayStr } from '../utils/dateUtils';
 import { parseOverloadError } from '../utils/errorUtils';
 import { DAILY_CAPACITY_CONFLICT_STORAGE_KEY } from '../utils/dailyCapacityConflict';
-import { clearStoredPostponeNote, getStoredPostponeNote, setStoredPostponeNote } from '../utils/postponeNote';
+
+
+// US-09: Ya no se usa el workaround de localStorage para notas, el backend las maneja directamente.
+// import { clearStoredPostponeNote, getStoredPostponeNote, setStoredPostponeNote } from '../utils/postponeNote';
+
 import Modal from '../components/Modal';
 import { UserCircle, AlertCircle, AlertTriangle, HelpCircle, Calendar, Clock, CheckCircle2, CalendarClock, Loader2, Coffee, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -177,7 +181,9 @@ const HoyPage = () => {
         try {
             await updateSubtask(subtask.id, { status: 'done' });
 
-            clearStoredPostponeNote(subtask.id);
+            // US-09: Ya no es necesario, el backend maneja la nota automáticamente al reprogramar.
+            // clearStoredPostponeNote(rescheduleModal.subtask.id);
+
 
             await reload();
         } catch (error) {
@@ -196,18 +202,15 @@ const HoyPage = () => {
         if (!subtask?.id) return;
 
         const trimmedNote = (postponeModal.note || '').trim();
-        const payload = { status: 'postponed' };
+
+        // US-09: El backend ya soporta el campo `note` en Subtask,
+        // por lo que se envía directamente en el payload en vez de
+        // guardarlo en localStorage (workaround anterior, ya no necesario).
+        const payload = { status: 'postponed', note: trimmedNote };
 
         setIsPostponing(true);
         try {
             await updateSubtask(subtask.id, payload);
-
-            // El backend actual no soporta `note` en Subtask; persistimos el mensaje localmente.
-            if (trimmedNote) {
-                setStoredPostponeNote(subtask.id, trimmedNote);
-            } else {
-                clearStoredPostponeNote(subtask.id);
-            }
 
             setIsPostponing(false);
             handleClosePostpone();
@@ -224,6 +227,7 @@ const HoyPage = () => {
             setIsPostponing(false);
         }
     };
+
 
     const handleOpenReschedule = (subtask) => {
         setRescheduleModal({
@@ -248,7 +252,10 @@ const HoyPage = () => {
                 status: 'pending'
             });
 
-            clearStoredPostponeNote(rescheduleModal.subtask.id);
+            // US-09: Ya no es necesario limpiar localStorage, el backend
+            // borra automáticamente la nota cuando el estado cambia a 'done'.
+            // clearStoredPostponeNote(subtask.id);
+
 
             // Si todo sale bien
             setAlertModal({
@@ -312,7 +319,9 @@ const HoyPage = () => {
                 status: 'pending'
             });
 
-            clearStoredPostponeNote(reduceModal.subtask.id);
+            // US-09: Ya no es necesario, el backend maneja la nota automáticamente.
+            // clearStoredPostponeNote(reduceModal.subtask.id);
+
 
             setAlertModal({
                 isOpen: true,
@@ -402,7 +411,7 @@ const HoyPage = () => {
                 />
             </div>
             <div className="ml-auto relative group mb-3">
-                <button 
+                <button
                     type="button"
                     aria-label="Ver ayuda sobre cómo se ordenan las subtareas"
                     className="flex items-center gap-1.5 justify-center text-blue-500 text-sm font-semibold hover:text-blue-600 transition-colors">
@@ -423,18 +432,20 @@ const HoyPage = () => {
         const parent = subtask.parent_activity;
         const conflictDates = dailyCapacityConflict?.conflictDates || dailyCapacityConflict?.conflicts?.map(c => c.date) || [];
         const isDailyConflict = Boolean(subtask?.target_date && conflictDates.includes(subtask.target_date));
-        const postponedNote = (subtask?.note && String(subtask.note).trim()) || getStoredPostponeNote(subtask?.id);
+
+        // US-09: La nota ahora viene directamente del backend, ya no se usa localStorage.
+        const postponedNote = subtask?.note ? String(subtask.note).trim() : '';
+
         let icon = '📝';
         if (parent.type === 'project') icon = '💻';
         if (parent.type === 'exam' || parent.type === 'quiz') icon = '📚';
         if (parent.type === 'presentation') icon = '📊';
 
         return (
-            <div className={`rounded-2xl p-5 hover:shadow-sm transition-all shadow-sm mb-4 ${
-                isDailyConflict
-                    ? 'bg-red-50 border-2 border-red-600'
-                    : 'bg-white border border-zinc-300'
-            }`}>
+            <div className={`rounded-2xl p-5 hover:shadow-sm transition-all shadow-sm mb-4 ${isDailyConflict
+                ? 'bg-red-50 border-2 border-red-600'
+                : 'bg-white border border-zinc-300'
+                }`}>
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <Link to={`/actividad/${parent.id}`}>
