@@ -18,23 +18,45 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
             }
         }
 
-        if (data.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0) {
-            const firstKey = Object.keys(data.errors)[0];
-            const firstError = data.errors[firstKey];
-            errorMessage = Array.isArray(firstError) ? firstError[0] : firstError;
-        } else if (data.detail) {
-            errorMessage = typeof data.detail === 'string' ? data.detail : data.detail[0];
-        } else if (data.message && data.message !== 'Error de validación') {
-            errorMessage = typeof data.message === 'string' ? data.message : data.message[0];
-        } else if (data.error) {
-            errorMessage = typeof data.error === 'string' ? data.error : data.error[0];
-        } else if (data.target_date) {
-            errorMessage = data.target_date[0];
-        } else if (data.non_field_errors) {
-            errorMessage = data.non_field_errors[0];
-        } else if (data.message) {
-            // Fallback for "Error de validación" si no hay otro error específico
-            errorMessage = typeof data.message === 'string' ? data.message : data.message[0];
+        // Detectar overload_conflict en errors (viene como 400 desde el serializer)
+        if (data.errors?.overload_conflict) {
+            const conflictData = Array.isArray(data.errors.overload_conflict)
+                ? data.errors.overload_conflict[0]
+                : data.errors.overload_conflict;
+            if (typeof conflictData === 'object') {
+                isOverloadConflict = true;
+                conflictMessage = conflictData.message || 'Capacidad diaria excedida.';
+                conflictPayload = conflictData;
+                errorMessage = conflictMessage;
+            }
+        }
+
+        if (!isOverloadConflict) {
+            if (data.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0) {
+                // Buscar el primer error que no sea overload_conflict
+                const firstKey = Object.keys(data.errors).find(k => k !== 'overload_conflict') || Object.keys(data.errors)[0];
+                const firstError = data.errors[firstKey];
+                if (typeof firstError === 'string') {
+                    errorMessage = firstError;
+                } else if (Array.isArray(firstError)) {
+                    errorMessage = typeof firstError[0] === 'string' ? firstError[0] : JSON.stringify(firstError[0]);
+                } else {
+                    errorMessage = JSON.stringify(firstError);
+                }
+            } else if (data.detail) {
+                errorMessage = typeof data.detail === 'string' ? data.detail : data.detail[0];
+            } else if (data.message && data.message !== 'Error de validación') {
+                errorMessage = typeof data.message === 'string' ? data.message : data.message[0];
+            } else if (data.error) {
+                errorMessage = typeof data.error === 'string' ? data.error : data.error[0];
+            } else if (data.target_date) {
+                errorMessage = data.target_date[0];
+            } else if (data.non_field_errors) {
+                errorMessage = data.non_field_errors[0];
+            } else if (data.message) {
+                // Fallback for "Error de validación" si no hay otro error específico
+                errorMessage = typeof data.message === 'string' ? data.message : data.message[0];
+            }
         }
     } else if (error.message) {
         errorMessage = error.message;

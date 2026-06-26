@@ -214,7 +214,7 @@ function ActivityDetailPage() {
           isOpen: true,
           type: 'error',
           title: '¡Cuidado! Límite de capacidad excedido',
-          message: conflictMessage || errorMessage,
+          message: textMessage || errorMessage,
           onConfirm: null,
         })
       } else {
@@ -251,11 +251,12 @@ function ActivityDetailPage() {
     } else if (result?.error && result?.rawError) {
       const { isOverloadConflict, conflictMessage, errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al editar la subtarea. Inténtelo de nuevo.')
       if (isOverloadConflict) {
+        const textMessage = typeof conflictMessage === 'object' ? conflictMessage?.message : conflictMessage;
         setModalConfig({
           isOpen: true,
           type: 'error',
           title: '¡Cuidado! Límite de capacidad excedido',
-          message: conflictMessage || errorMessage,
+          message: textMessage || errorMessage,
           onConfirm: null,
         })
       } else {

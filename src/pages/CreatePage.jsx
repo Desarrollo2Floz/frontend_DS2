@@ -89,7 +89,7 @@ function CreatePage() {
       const payload = {
         title: form.title.trim(),
         type: form.type,
-        course: form.course.trim() || null,
+        course: form.course.trim(),
         due_date: form.due_date,
         weight: form.weight !== '' ? parseFloat(form.weight) : null,
         subtasks: subtasks // array con las subtareas a crear
