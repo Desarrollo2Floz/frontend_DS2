@@ -4,7 +4,7 @@ import { ArrowLeft, AlertTriangle, Calendar, RotateCcw } from 'lucide-react'
 import { useActivity } from '../hooks/useActivity'
 import { useSubtasks } from '../hooks/useSubtasks'
 import { updateActivity, deleteActivity } from '../services/activityService'
-import { updateSubtask } from '../services/subtaskService'
+import { createSubtask, updateSubtask } from '../services/subtaskService'
 import SubtaskCard from '../components/activities/SubtaskCard'
 import SubtaskForm from '../components/activities/SubtaskForm'
 import Modal from '../components/Modal'
@@ -69,13 +69,17 @@ function ActivityDetailPage() {
   const [rescheduleModal, setRescheduleModal] = useState({
     isOpen: false,
     subtask: null,
-    newDate: ''
+    newDate: '',
+    isNew: false,
+    activityId: null
   })
   const [reduceModal, setReduceModal] = useState({
     isOpen: false,
     subtask: null,
     newDate: '',
-    newHours: 0
+    newHours: 0,
+    isNew: false,
+    activityId: null
   })
   const [isResolving, setIsResolving] = useState(false)
 
@@ -309,12 +313,22 @@ function ActivityDetailPage() {
     if (!rescheduleModal.subtask || !rescheduleModal.newDate) return
     setIsResolving(true)
     try {
-      const subtaskId = rescheduleModal.subtask.id
-      const response = await updateSubtask(subtaskId, {
-        target_date: rescheduleModal.newDate,
-        status: 'pending'
-      })
-      setRescheduleModal({ isOpen: false, subtask: null, newDate: '' })
+      let response
+      if (rescheduleModal.isNew && rescheduleModal.activityId) {
+        const { id, ...rest } = rescheduleModal.subtask
+        response = await createSubtask(rescheduleModal.activityId, {
+          ...rest,
+          target_date: rescheduleModal.newDate,
+          status: 'pending'
+        })
+      } else {
+        const subtaskId = rescheduleModal.subtask.id
+        response = await updateSubtask(subtaskId, {
+          target_date: rescheduleModal.newDate,
+          status: 'pending'
+        })
+      }
+      setRescheduleModal({ isOpen: false, subtask: null, newDate: '', isNew: false, activityId: null })
 
       if (response?.exceeds) {
         setConflictModal({
@@ -350,11 +364,11 @@ function ActivityDetailPage() {
     } catch (error) {
       const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(error, 'Ha ocurrido un error reprogramando la subtarea.')
       if (isOverloadConflict) {
-        setRescheduleModal({ isOpen: false, subtask: null, newDate: '' })
+        setRescheduleModal({ isOpen: false, subtask: null, newDate: '', isNew: false, activityId: null })
         setConflictModal({
           isOpen: true,
           subtask: rescheduleModal.subtask,
-          conflictData: { message: conflictMessage || errorMessage, attemptedDate: rescheduleModal.newDate, payload: conflictPayload }
+          conflictData: { message: conflictMessage || errorMessage, attemptedDate: rescheduleModal.newDate, payload: conflictPayload, isNew: rescheduleModal.isNew, activityId: rescheduleModal.activityId }
         })
         return
       }
@@ -374,13 +388,24 @@ function ActivityDetailPage() {
     if (!reduceModal.subtask || !reduceModal.newDate || reduceModal.newHours <= 0) return
     setIsResolving(true)
     try {
-      const subtaskId = reduceModal.subtask.id
-      const response = await updateSubtask(subtaskId, {
-        target_date: reduceModal.newDate,
-        estimated_hours: reduceModal.newHours,
-        status: 'pending'
-      })
-      setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0 })
+      let response
+      if (reduceModal.isNew && reduceModal.activityId) {
+        const { id, ...rest } = reduceModal.subtask
+        response = await createSubtask(reduceModal.activityId, {
+          ...rest,
+          target_date: reduceModal.newDate,
+          estimated_hours: reduceModal.newHours,
+          status: 'pending'
+        })
+      } else {
+        const subtaskId = reduceModal.subtask.id
+        response = await updateSubtask(subtaskId, {
+          target_date: reduceModal.newDate,
+          estimated_hours: reduceModal.newHours,
+          status: 'pending'
+        })
+      }
+      setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0, isNew: false, activityId: null })
 
       if (response?.exceeds) {
         setConflictModal({
@@ -416,11 +441,11 @@ function ActivityDetailPage() {
     } catch (error) {
       const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(error, 'Ha ocurrido un error al actualizar las horas.')
       if (isOverloadConflict) {
-        setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0 })
+        setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0, isNew: false, activityId: null })
         setConflictModal({
           isOpen: true,
           subtask: reduceModal.subtask,
-          conflictData: { message: conflictMessage || errorMessage, attemptedDate: reduceModal.newDate, payload: conflictPayload }
+          conflictData: { message: conflictMessage || errorMessage, attemptedDate: reduceModal.newDate, payload: conflictPayload, isNew: reduceModal.isNew, activityId: reduceModal.activityId }
         })
         return
       }
@@ -809,25 +834,27 @@ function ActivityDetailPage() {
               </p>
 
               <div className="flex flex-col gap-2.5 mb-4">
-                {conflictModal.subtask?.id && (
-                  <button
-                    onClick={() => {
-                      const subtask = conflictModal.subtask;
-                      setConflictModal({ isOpen: false, subtask: null, conflictData: null });
-                      setRescheduleModal({
-                        isOpen: true,
-                        subtask: subtask,
-                        newDate: alternativeDate || subtask.target_date || ''
-                      });
-                    }}
-                    className="flex items-center gap-2 bg-[#3b82f6] text-white px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full"
-                  >
-                    <Calendar size={18} strokeWidth={2.5} />
-                    {alternativeDate ? `Mover al ${formatDateLong(alternativeDate)}` : 'Mover a otro día'}
-                  </button>
-                )}
+                <button
+                  onClick={() => {
+                    const subtask = conflictModal.subtask;
+                    const isNew = conflictModal.conflictData?.isNew || false;
+                    const activityId = conflictModal.conflictData?.activityId || activity?.id || null;
+                    setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+                    setRescheduleModal({
+                      isOpen: true,
+                      subtask: subtask,
+                      newDate: alternativeDate || subtask.target_date || '',
+                      isNew,
+                      activityId
+                    });
+                  }}
+                  className="flex items-center gap-2 bg-[#3b82f6] text-white px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full"
+                >
+                  <Calendar size={18} strokeWidth={2.5} />
+                  {alternativeDate ? `Cambiar el día` : 'Cambiar el día'}
+                </button>
 
-                {alternativeDates.length > 1 && conflictModal.subtask?.id && (
+                {alternativeDates.length > 1 && (
                   <div className="flex flex-wrap gap-1.5 pl-1">
                     <span className="text-xs text-slate-400 font-medium">Otras fechas disponibles:</span>
                     {alternativeDates.slice(1).map((altDate) => (
@@ -835,11 +862,15 @@ function ActivityDetailPage() {
                         key={altDate}
                         onClick={() => {
                           const subtask = conflictModal.subtask;
+                          const isNew = conflictModal.conflictData?.isNew || false;
+                          const activityId = conflictModal.conflictData?.activityId || activity?.id || null;
                           setConflictModal({ isOpen: false, subtask: null, conflictData: null });
                           setRescheduleModal({
                             isOpen: true,
                             subtask: subtask,
-                            newDate: altDate
+                            newDate: altDate,
+                            isNew,
+                            activityId
                           });
                         }}
                         className="text-xs text-blue-600 hover:text-blue-700 font-semibold underline underline-offset-2 transition-colors"
@@ -850,17 +881,21 @@ function ActivityDetailPage() {
                   </div>
                 )}
 
-                {reducedHoursValue > 0 && conflictModal.subtask?.id && (
+                {reducedHoursValue > 0 && (
                   <button
                     onClick={() => {
                       const subtask = conflictModal.subtask;
                       const targetDate = conflictModal.conflictData.attemptedDate || subtask.target_date;
+                      const isNew = conflictModal.conflictData?.isNew || false;
+                      const activityId = conflictModal.conflictData?.activityId || activity?.id || null;
                       setConflictModal({ isOpen: false, subtask: null, conflictData: null });
                       setReduceModal({
                         isOpen: true,
                         subtask: subtask,
                         newDate: targetDate,
-                        newHours: reducedHoursValue
+                        newHours: reducedHoursValue,
+                        isNew,
+                        activityId
                       });
                     }}
                     className="flex items-center gap-2 bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-slate-200 transition-colors w-full"
@@ -884,7 +919,7 @@ function ActivityDetailPage() {
       {/* US-08: Modal reprogramar desde conflicto */}
       <Modal
         isOpen={rescheduleModal.isOpen}
-        onClose={() => setRescheduleModal({ isOpen: false, subtask: null, newDate: '' })}
+        onClose={() => setRescheduleModal({ isOpen: false, subtask: null, newDate: '', isNew: false, activityId: null })}
         onConfirm={handleConflictRescheduleConfirm}
         title="Reprogramar"
         confirmText="Reprogramar"
@@ -907,7 +942,7 @@ function ActivityDetailPage() {
       {/* US-08: Modal reducir horas desde conflicto */}
       <Modal
         isOpen={reduceModal.isOpen}
-        onClose={() => setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0 })}
+        onClose={() => setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0, isNew: false, activityId: null })}
         onConfirm={handleConflictReduceConfirm}
         title="Reducir horas estimadas"
         confirmText="Guardar"
