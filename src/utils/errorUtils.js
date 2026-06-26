@@ -9,8 +9,24 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
 
         // Detectar conflicto de capacidad diaria (status 409)
         if (error.response.status === 409) {
-            // El backend devuelve: { detail: "Capacidad diaria excedida", conflict: { ... } }
-            if (data.detail && typeof data.detail === 'string' && data.detail.includes('capacidad diaria')) {
+            // Formato 1: Respuesta directa del serializer con overload_conflict
+            // { status: 'error', resolved: false, message: '...', planned_hours, limit_hours, exceeds_by, ... }
+            if (data.status === 'error' && data.resolved === false && data.planned_hours !== undefined) {
+                isOverloadConflict = true;
+                conflictMessage = data.message || 'Capacidad diaria excedida.';
+                conflictPayload = data;
+                errorMessage = conflictMessage;
+            }
+            // Formato 2: Respuesta del endpoint validate_overload
+            // { status: 'conflict', message: '...', planned_hours, limit_hours, ... }
+            else if (data.status === 'conflict') {
+                isOverloadConflict = true;
+                conflictMessage = data.message || 'Capacidad diaria excedida.';
+                conflictPayload = data;
+                errorMessage = conflictMessage;
+            }
+            // Formato 3: El backend devuelve: { detail: "Capacidad diaria excedida", conflict: { ... } }
+            else if (data.detail && typeof data.detail === 'string' && data.detail.toLowerCase().includes('capacidad')) {
                 isOverloadConflict = true;
                 conflictMessage = data.detail;
                 conflictPayload = data.conflict || null;
@@ -18,8 +34,8 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
             }
         }
 
-        // Detectar overload_conflict en errors (viene como 400 desde el serializer)
-        if (data.errors?.overload_conflict) {
+        // Detectar overload_conflict en errors (viene como 400 desde el serializer via views.py)
+        if (!isOverloadConflict && data.errors?.overload_conflict) {
             const conflictData = Array.isArray(data.errors.overload_conflict)
                 ? data.errors.overload_conflict[0]
                 : data.errors.overload_conflict;

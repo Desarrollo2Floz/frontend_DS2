@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, useSearchParams } from 'react-router-dom' // ← agregar useSearchParams
-import { ArrowLeft } from 'lucide-react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, AlertTriangle, Calendar, RotateCcw } from 'lucide-react'
 import { useActivity } from '../hooks/useActivity'
 import { useSubtasks } from '../hooks/useSubtasks'
 import { updateActivity, deleteActivity } from '../services/activityService'
+import { updateSubtask } from '../services/subtaskService'
 import SubtaskCard from '../components/activities/SubtaskCard'
 import SubtaskForm from '../components/activities/SubtaskForm'
 import Modal from '../components/Modal'
@@ -57,7 +58,26 @@ function ActivityDetailPage() {
   const [editingSubtask, setEditingSubtask] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
   const [searchParams] = useSearchParams()
-  const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true') // ← detectar ?edit=true
+  const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true')
+
+  // --- US-07/08: Estado para conflicto de sobrecarga ---
+  const [conflictModal, setConflictModal] = useState({
+    isOpen: false,
+    subtask: null,
+    conflictData: null
+  })
+  const [rescheduleModal, setRescheduleModal] = useState({
+    isOpen: false,
+    subtask: null,
+    newDate: ''
+  })
+  const [reduceModal, setReduceModal] = useState({
+    isOpen: false,
+    subtask: null,
+    newDate: '',
+    newHours: 0
+  })
+  const [isResolving, setIsResolving] = useState(false)
 
   // Cuando carga la actividad, llena el formulario con sus datos
   useEffect(() => {
@@ -207,15 +227,18 @@ function ActivityDetailPage() {
         onConfirm: null,
       })
     } else if (result?.error && result?.rawError) {
-      const { isOverloadConflict, conflictMessage, errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.')
+      const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(result.rawError, 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.')
       if (isOverloadConflict) {
-        const textMessage = typeof conflictMessage === 'object' ? conflictMessage?.message : conflictMessage;
-        setModalConfig({
+        setConflictModal({
           isOpen: true,
-          type: 'error',
-          title: '¡Cuidado! Límite de capacidad excedido',
-          message: textMessage || errorMessage,
-          onConfirm: null,
+          subtask: data,
+          conflictData: {
+            message: conflictMessage || errorMessage,
+            attemptedDate: data.target_date,
+            payload: conflictPayload,
+            isNew: true,
+            activityId: activity?.id
+          }
         })
       } else {
         setModalConfig({
@@ -249,15 +272,17 @@ function ActivityDetailPage() {
         onConfirm: null,
       })
     } else if (result?.error && result?.rawError) {
-      const { isOverloadConflict, conflictMessage, errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al editar la subtarea. Inténtelo de nuevo.')
+      const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(result.rawError, 'Ha ocurrido un error al editar la subtarea. Inténtelo de nuevo.')
       if (isOverloadConflict) {
-        const textMessage = typeof conflictMessage === 'object' ? conflictMessage?.message : conflictMessage;
-        setModalConfig({
+        setEditingSubtask(null)
+        setConflictModal({
           isOpen: true,
-          type: 'error',
-          title: '¡Cuidado! Límite de capacidad excedido',
-          message: textMessage || errorMessage,
-          onConfirm: null,
+          subtask: { ...editingSubtask, ...data },
+          conflictData: {
+            message: conflictMessage || errorMessage,
+            attemptedDate: data.target_date || editingSubtask.target_date,
+            payload: conflictPayload
+          }
         })
       } else {
         setModalConfig({
@@ -277,6 +302,152 @@ function ActivityDetailPage() {
         onConfirm: null,
       })
     }
+  }
+
+  // --- US-08: Handlers para resolver conflicto desde detalle ---
+  const handleConflictRescheduleConfirm = async () => {
+    if (!rescheduleModal.subtask || !rescheduleModal.newDate) return
+    setIsResolving(true)
+    try {
+      const subtaskId = rescheduleModal.subtask.id
+      const response = await updateSubtask(subtaskId, {
+        target_date: rescheduleModal.newDate,
+        status: 'pending'
+      })
+      setRescheduleModal({ isOpen: false, subtask: null, newDate: '' })
+
+      if (response?.exceeds) {
+        setConflictModal({
+          isOpen: true,
+          subtask: rescheduleModal.subtask,
+          conflictData: {
+            message: response.message,
+            attemptedDate: rescheduleModal.newDate,
+            payload: {
+              planned_hours: response.planned_hours,
+              limit_hours: response.limit_hours,
+              exceeds_by: response.exceeds_by,
+              hours_to_reduce: response.exceeds_by,
+              min_hours: 0.5,
+              alternative_dates: []
+            }
+          }
+        })
+        reload()
+        return
+      }
+
+      setModalConfig({
+        isOpen: true,
+        type: 'success',
+        title: response?.resolved ? 'Conflicto resuelto' : 'Reprogramar',
+        message: response?.resolved
+          ? 'La subtarea fue reprogramada y el conflicto de sobrecarga fue resuelto.'
+          : 'La fecha de la subtarea se actualizó correctamente.',
+        onConfirm: null,
+      })
+      reload()
+    } catch (error) {
+      const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(error, 'Ha ocurrido un error reprogramando la subtarea.')
+      if (isOverloadConflict) {
+        setRescheduleModal({ isOpen: false, subtask: null, newDate: '' })
+        setConflictModal({
+          isOpen: true,
+          subtask: rescheduleModal.subtask,
+          conflictData: { message: conflictMessage || errorMessage, attemptedDate: rescheduleModal.newDate, payload: conflictPayload }
+        })
+        return
+      }
+      setModalConfig({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al actualizar',
+        message: errorMessage,
+        onConfirm: null,
+      })
+    } finally {
+      setIsResolving(false)
+    }
+  }
+
+  const handleConflictReduceConfirm = async () => {
+    if (!reduceModal.subtask || !reduceModal.newDate || reduceModal.newHours <= 0) return
+    setIsResolving(true)
+    try {
+      const subtaskId = reduceModal.subtask.id
+      const response = await updateSubtask(subtaskId, {
+        target_date: reduceModal.newDate,
+        estimated_hours: reduceModal.newHours,
+        status: 'pending'
+      })
+      setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0 })
+
+      if (response?.exceeds) {
+        setConflictModal({
+          isOpen: true,
+          subtask: { ...reduceModal.subtask, estimated_hours: reduceModal.newHours },
+          conflictData: {
+            message: response.message,
+            attemptedDate: reduceModal.newDate,
+            payload: {
+              planned_hours: response.planned_hours,
+              limit_hours: response.limit_hours,
+              exceeds_by: response.exceeds_by,
+              hours_to_reduce: response.exceeds_by,
+              min_hours: 0.5,
+              alternative_dates: []
+            }
+          }
+        })
+        reload()
+        return
+      }
+
+      setModalConfig({
+        isOpen: true,
+        type: 'success',
+        title: response?.resolved ? 'Conflicto resuelto' : 'Horas reducidas',
+        message: response?.resolved
+          ? 'Las horas fueron reducidas y el conflicto de sobrecarga fue resuelto.'
+          : 'La fecha y las horas de la subtarea se actualizaron correctamente.',
+        onConfirm: null,
+      })
+      reload()
+    } catch (error) {
+      const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(error, 'Ha ocurrido un error al actualizar las horas.')
+      if (isOverloadConflict) {
+        setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0 })
+        setConflictModal({
+          isOpen: true,
+          subtask: reduceModal.subtask,
+          conflictData: { message: conflictMessage || errorMessage, attemptedDate: reduceModal.newDate, payload: conflictPayload }
+        })
+        return
+      }
+      setModalConfig({
+        isOpen: true,
+        type: 'error',
+        title: 'Error al actualizar',
+        message: errorMessage,
+        onConfirm: null,
+      })
+    } finally {
+      setIsResolving(false)
+    }
+  }
+
+  const formatDateShort = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr + "T00:00:00")
+    const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
+    return `${d.getDate()} ${months[d.getMonth()]}`
+  }
+
+  const formatDateLong = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr + "T00:00:00")
+    const months = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+    return `${d.getDate()} de ${months[d.getMonth()]}`
   }
 
   const handleDeleteSubtask = async (subtaskId) => {
@@ -589,6 +760,179 @@ function ActivityDetailPage() {
         type={modalConfig.type}
         onConfirm={modalConfig.onConfirm}
       />
+
+      {/* US-07/08: Modal de conflicto de sobrecarga */}
+      <Modal
+        isOpen={conflictModal.isOpen}
+        onClose={() => setConflictModal({ isOpen: false, subtask: null, conflictData: null })}
+        title="Conflicto de sobrecarga"
+        icon={<AlertTriangle size={22} className="text-amber-500" />}
+        hideFooter={true}
+        size="lg"
+      >
+        {conflictModal.conflictData && (() => {
+          const payload = conflictModal.conflictData.payload;
+          const alternativeDates = payload?.alternative_dates || [];
+          const alternativeDate = alternativeDates[0];
+          const hoursToReduce = payload?.hours_to_reduce;
+          const minHours = payload?.min_hours || 0.5;
+          const subtaskHours = conflictModal.subtask?.estimated_hours || 0;
+          const plannedHours = payload?.planned_hours;
+          const limitHoursVal = payload?.limit_hours;
+
+          let reducedHoursValue = subtaskHours;
+          let reducedHoursLabel = 'Reducir horas estimadas';
+          if (hoursToReduce > 0 && subtaskHours > hoursToReduce) {
+            reducedHoursValue = Math.max(subtaskHours - hoursToReduce, minHours);
+            reducedHoursLabel = `Reducir a ${reducedHoursValue}h`;
+          } else if (hoursToReduce > 0 && subtaskHours <= hoursToReduce) {
+            reducedHoursValue = 0;
+          }
+
+          return (
+            <div className="flex flex-col">
+              <p className="text-slate-600 font-medium text-[15px] mb-4">
+                {conflictModal.conflictData.message}
+              </p>
+
+              {plannedHours !== undefined && limitHoursVal !== undefined && (
+                <div className="flex items-center gap-3 mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                  <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
+                  <p className="text-sm text-amber-800 font-medium">
+                    {plannedHours}h planificadas de {limitHoursVal}h disponibles
+                  </p>
+                </div>
+              )}
+
+              <p className="text-slate-500 font-medium text-[14px] mb-3">
+                ¿Cómo deseas resolverlo?
+              </p>
+
+              <div className="flex flex-col gap-2.5 mb-4">
+                {conflictModal.subtask?.id && (
+                  <button
+                    onClick={() => {
+                      const subtask = conflictModal.subtask;
+                      setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+                      setRescheduleModal({
+                        isOpen: true,
+                        subtask: subtask,
+                        newDate: alternativeDate || subtask.target_date || ''
+                      });
+                    }}
+                    className="flex items-center gap-2 bg-[#3b82f6] text-white px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full"
+                  >
+                    <Calendar size={18} strokeWidth={2.5} />
+                    {alternativeDate ? `Mover al ${formatDateLong(alternativeDate)}` : 'Mover a otro día'}
+                  </button>
+                )}
+
+                {alternativeDates.length > 1 && conflictModal.subtask?.id && (
+                  <div className="flex flex-wrap gap-1.5 pl-1">
+                    <span className="text-xs text-slate-400 font-medium">Otras fechas disponibles:</span>
+                    {alternativeDates.slice(1).map((altDate) => (
+                      <button
+                        key={altDate}
+                        onClick={() => {
+                          const subtask = conflictModal.subtask;
+                          setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+                          setRescheduleModal({
+                            isOpen: true,
+                            subtask: subtask,
+                            newDate: altDate
+                          });
+                        }}
+                        className="text-xs text-blue-600 hover:text-blue-700 font-semibold underline underline-offset-2 transition-colors"
+                      >
+                        {formatDateLong(altDate)}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {reducedHoursValue > 0 && conflictModal.subtask?.id && (
+                  <button
+                    onClick={() => {
+                      const subtask = conflictModal.subtask;
+                      const targetDate = conflictModal.conflictData.attemptedDate || subtask.target_date;
+                      setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+                      setReduceModal({
+                        isOpen: true,
+                        subtask: subtask,
+                        newDate: targetDate,
+                        newHours: reducedHoursValue
+                      });
+                    }}
+                    className="flex items-center gap-2 bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-slate-200 transition-colors w-full"
+                  >
+                    <RotateCcw size={18} strokeWidth={2.5} /> {reducedHoursLabel}
+                  </button>
+                )}
+              </div>
+
+              <button
+                onClick={() => setConflictModal({ isOpen: false, subtask: null, conflictData: null })}
+                className="text-slate-500 text-[13px] font-medium hover:text-slate-700 transition-colors self-end"
+              >
+                Cancelar
+              </button>
+            </div>
+          );
+        })()}
+      </Modal>
+
+      {/* US-08: Modal reprogramar desde conflicto */}
+      <Modal
+        isOpen={rescheduleModal.isOpen}
+        onClose={() => setRescheduleModal({ isOpen: false, subtask: null, newDate: '' })}
+        onConfirm={handleConflictRescheduleConfirm}
+        title="Reprogramar"
+        confirmText="Reprogramar"
+        showCancel={true}
+        isLoading={isResolving}
+      >
+        <div className="py-2">
+          <div className="space-y-2">
+            <label className="text-sm font-bold text-zinc-700">Elige una nueva fecha</label>
+            <input
+              type="date"
+              value={rescheduleModal.newDate}
+              onChange={(e) => setRescheduleModal({ ...rescheduleModal, newDate: e.target.value })}
+              className="w-full border border-zinc-300 rounded-lg px-4 py-3 text-sm font-medium text-zinc-800 outline-none focus:border-blue-500"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* US-08: Modal reducir horas desde conflicto */}
+      <Modal
+        isOpen={reduceModal.isOpen}
+        onClose={() => setReduceModal({ isOpen: false, subtask: null, newDate: '', newHours: 0 })}
+        onConfirm={handleConflictReduceConfirm}
+        title="Reducir horas estimadas"
+        confirmText="Guardar"
+        showCancel={true}
+        isLoading={isResolving}
+      >
+        <div className="py-2">
+          <div className="space-y-4">
+            <p className="text-sm text-zinc-600">
+              Ajusta el tiempo que le dedicarás a esta tarea el <b>{formatDateShort(reduceModal.newDate)}</b> para no exceder tu límite.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-bold text-zinc-700">Nuevas horas estimadas</label>
+              <input
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={reduceModal.newHours}
+                onChange={(e) => setReduceModal({ ...reduceModal, newHours: parseFloat(e.target.value) || '' })}
+                className="w-full border border-zinc-300 rounded-lg px-4 py-3 text-sm font-medium text-zinc-800 outline-none focus:border-blue-500"
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

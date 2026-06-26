@@ -246,25 +246,48 @@ const HoyPage = () => {
 
         setIsRescheduling(true);
         try {
-            await updateSubtask(rescheduleModal.subtask.id, {
+            const response = await updateSubtask(rescheduleModal.subtask.id, {
                 target_date: rescheduleModal.newDate,
                 // Reprogramar = volver a planificar (no es posponer)
                 status: 'pending'
             });
 
-            // US-09: Ya no es necesario limpiar localStorage, el backend
-            // borra automáticamente la nota cuando el estado cambia a 'done'.
-            // clearStoredPostponeNote(subtask.id);
+            handleCloseReschedule();
 
+            // US-08: Si el backend indica que aún hay sobrecarga tras guardar, re-mostrar conflicto
+            if (response?.exceeds) {
+                setConflictModal({
+                    isOpen: true,
+                    subtask: rescheduleModal.subtask,
+                    conflictData: {
+                        message: response.message || `Aún quedarías con ${response.planned_hours}h planificadas (límite ${response.limit_hours}h)`,
+                        attemptedDate: rescheduleModal.newDate,
+                        payload: {
+                            planned_hours: response.planned_hours,
+                            limit_hours: response.limit_hours,
+                            exceeds_by: response.exceeds_by,
+                            hours_to_reduce: response.exceeds_by,
+                            min_hours: 0.5,
+                            alternative_dates: []
+                        }
+                    }
+                });
+                reload();
+                return;
+            }
 
-            // Si todo sale bien
+            // US-08: Mostrar "Conflicto resuelto" si venía de un conflicto
+            const successTitle = response?.resolved ? 'Conflicto resuelto' : 'Reprogramar';
+            const successMessage = response?.resolved
+                ? 'La subtarea fue reprogramada y el conflicto de sobrecarga fue resuelto.'
+                : 'La fecha de la subtarea se actualizó correctamente.';
+
             setAlertModal({
                 isOpen: true,
                 type: 'success',
-                title: 'Reprogramar',
-                message: 'La fecha de la subtarea se actualizó correctamente.'
+                title: successTitle,
+                message: successMessage
             });
-            handleCloseReschedule();
             reload();
 
         } catch (error) {
@@ -312,24 +335,49 @@ const HoyPage = () => {
 
         setIsReducing(true);
         try {
-            await updateSubtask(reduceModal.subtask.id, {
+            const response = await updateSubtask(reduceModal.subtask.id, {
                 target_date: reduceModal.newDate,
                 estimated_hours: reduceModal.newHours,
                 // Reducir horas para resolver conflicto mantiene la subtarea planificada
                 status: 'pending'
             });
 
-            // US-09: Ya no es necesario, el backend maneja la nota automáticamente.
-            // clearStoredPostponeNote(reduceModal.subtask.id);
+            handleCloseReduce();
 
+            // US-08 Escenario 2: Si aún excede tras reducir, re-mostrar conflicto
+            if (response?.exceeds) {
+                setConflictModal({
+                    isOpen: true,
+                    subtask: { ...reduceModal.subtask, estimated_hours: reduceModal.newHours },
+                    conflictData: {
+                        message: response.message || `Aún quedarías con ${response.planned_hours}h planificadas (límite ${response.limit_hours}h)`,
+                        attemptedDate: reduceModal.newDate,
+                        payload: {
+                            planned_hours: response.planned_hours,
+                            limit_hours: response.limit_hours,
+                            exceeds_by: response.exceeds_by,
+                            hours_to_reduce: response.exceeds_by,
+                            min_hours: 0.5,
+                            alternative_dates: []
+                        }
+                    }
+                });
+                reload();
+                return;
+            }
+
+            // US-08: Mostrar "Conflicto resuelto"
+            const successTitle = response?.resolved ? 'Conflicto resuelto' : 'Horas reducidas';
+            const successMessage = response?.resolved
+                ? 'Las horas fueron reducidas y el conflicto de sobrecarga fue resuelto.'
+                : 'La fecha y las horas de la subtarea se actualizaron correctamente.';
 
             setAlertModal({
                 isOpen: true,
                 type: 'success',
-                title: 'Horas reducidas',
-                message: 'La fecha y las horas de la subtarea se actualizaron correctamente.'
+                title: successTitle,
+                message: successMessage
             });
-            handleCloseReduce();
             reload();
 
         } catch (error) {
@@ -670,18 +718,22 @@ const HoyPage = () => {
 
     const renderConflictModal = () => {
         const payload = conflictModal.conflictData?.payload;
-        const alternativeDate = payload?.alternative_dates?.[0];
+        const alternativeDates = payload?.alternative_dates || [];
+        const alternativeDate = alternativeDates[0];
         const hoursToReduce = payload?.hours_to_reduce;
+        const minHours = payload?.min_hours || 0.5;
         const subtaskHours = conflictModal.subtask?.estimated_hours || 0;
+        const plannedHours = payload?.planned_hours;
+        const limitHours = payload?.limit_hours;
 
         let reducedHoursLabel = "Reducir horas estimadas";
         let reducedHoursValue = subtaskHours;
 
         if (hoursToReduce > 0 && subtaskHours > hoursToReduce) {
-            reducedHoursValue = subtaskHours - hoursToReduce;
+            reducedHoursValue = Math.max(subtaskHours - hoursToReduce, minHours);
             reducedHoursLabel = `Reducir a ${reducedHoursValue}h`;
         } else if (hoursToReduce > 0 && subtaskHours <= hoursToReduce) {
-            // Si la reducción requerida haría que las horas fueran <= 0
+            // Si la reducción requerida haría que las horas fueran <= min_hours
             reducedHoursValue = 0;
         }
 
@@ -699,65 +751,99 @@ const HoyPage = () => {
                 title="Conflicto de sobrecarga"
                 icon={<AlertTriangle size={22} className="text-amber-500" />}
                 hideFooter={true}
+                size="lg"
             >
                 {conflictModal.conflictData && (
                     <div className="flex flex-col">
-                        <p className="text-[#94a3b8] font-medium text-[15px] mb-8">
+                        <p className="text-slate-600 font-medium text-[15px] mb-4">
                             {conflictModal.conflictData.message}
                         </p>
 
-                        <p className="text-[#94a3b8] font-medium text-[15px] mb-3">
+                        {/* Detalle visual de horas */}
+                        {plannedHours !== undefined && limitHours !== undefined && (
+                            <div className="flex items-center gap-3 mb-6 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                                <AlertTriangle size={16} className="text-amber-500 flex-shrink-0" />
+                                <p className="text-sm text-amber-800 font-medium">
+                                    {plannedHours}h planificadas de {limitHours}h disponibles
+                                </p>
+                            </div>
+                        )}
+
+                        <p className="text-slate-500 font-medium text-[14px] mb-3">
                             ¿Cómo deseas resolverlo?
                         </p>
 
-                        <div className="flex justify-between items-end w-full">
-                            <div className="flex flex-col gap-2.5 items-start">
+                        <div className="flex flex-col gap-2.5 mb-4">
+                            {/* Opción: Mover a otro día */}
+                            <button
+                                onClick={() => {
+                                    const subtask = conflictModal.subtask;
+                                    setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+
+                                    setRescheduleModal({
+                                        isOpen: true,
+                                        subtask: subtask,
+                                        newDate: alternativeDate || subtask.target_date || ''
+                                    });
+                                }}
+                                className="flex items-center gap-2 bg-[#3b82f6] text-white px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full"
+                            >
+                                <Calendar size={18} strokeWidth={2.5} />
+                                {alternativeDate ? `Mover al ${formatDateLong(alternativeDate)}` : 'Mover a otro día'}
+                            </button>
+
+                            {/* Más sugerencias si hay varias fechas alternativas */}
+                            {alternativeDates.length > 1 && (
+                                <div className="flex flex-wrap gap-1.5 pl-1">
+                                    <span className="text-xs text-slate-400 font-medium">Otras fechas disponibles:</span>
+                                    {alternativeDates.slice(1).map((altDate) => (
+                                        <button
+                                            key={altDate}
+                                            onClick={() => {
+                                                const subtask = conflictModal.subtask;
+                                                setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+                                                setRescheduleModal({
+                                                    isOpen: true,
+                                                    subtask: subtask,
+                                                    newDate: altDate
+                                                });
+                                            }}
+                                            className="text-xs text-blue-600 hover:text-blue-700 font-semibold underline underline-offset-2 transition-colors"
+                                        >
+                                            {formatDateLong(altDate)}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Opción: Reducir horas */}
+                            {reducedHoursValue > 0 && (
                                 <button
                                     onClick={() => {
                                         const subtask = conflictModal.subtask;
+                                        const targetDate = conflictModal.conflictData.attemptedDate || rescheduleModal.newDate || subtask.target_date;
                                         setConflictModal({ isOpen: false, subtask: null, conflictData: null });
 
-                                        // Update the date picker payload directly if an alternative date exists
-                                        setRescheduleModal({
+                                        setReduceModal({
                                             isOpen: true,
                                             subtask: subtask,
-                                            newDate: alternativeDate || subtask.target_date || ''
+                                            newDate: targetDate,
+                                            newHours: reducedHoursValue
                                         });
                                     }}
-                                    className="flex items-center gap-2 bg-[#3b82f6] text-white px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-blue-600 transition-colors shadow-sm w-full"
+                                    className="flex items-center gap-2 bg-slate-100 text-slate-700 border border-slate-200 px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-slate-200 transition-colors w-full"
                                 >
-                                    <Calendar size={18} strokeWidth={2.5} />
-                                    {alternativeDate ? `Mover al ${formatDateLong(alternativeDate)}` : 'Mover a otro día'}
+                                    <RotateCcw size={18} strokeWidth={2.5} /> {reducedHoursLabel}
                                 </button>
-
-                                {reducedHoursValue > 0 && (
-                                    <button
-                                        onClick={() => {
-                                            const subtask = conflictModal.subtask;
-                                            const targetDate = conflictModal.conflictData.attemptedDate || rescheduleModal.newDate || subtask.target_date;
-                                            setConflictModal({ isOpen: false, subtask: null, conflictData: null });
-
-                                            setReduceModal({
-                                                isOpen: true,
-                                                subtask: subtask,
-                                                newDate: targetDate,
-                                                newHours: reducedHoursValue
-                                            });
-                                        }}
-                                        className="flex items-center gap-2 bg-[#8b98a9] text-white px-4 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-[#7b8696] transition-colors shadow-sm w-full"
-                                    >
-                                        <RotateCcw size={18} strokeWidth={2.5} /> {reducedHoursLabel}
-                                    </button>
-                                )}
-                            </div>
-
-                            <button
-                                onClick={() => setConflictModal({ isOpen: false, subtask: null, conflictData: null })}
-                                className="bg-[#3b82f6] text-white px-6 py-2.5 rounded-xl text-[14px] font-semibold hover:bg-blue-600 transition-colors shadow-sm"
-                            >
-                                Cancelar
-                            </button>
+                            )}
                         </div>
+
+                        <button
+                            onClick={() => setConflictModal({ isOpen: false, subtask: null, conflictData: null })}
+                            className="text-slate-500 text-[13px] font-medium hover:text-slate-700 transition-colors self-end"
+                        >
+                            Cancelar
+                        </button>
                     </div>
                 )}
             </Modal>
