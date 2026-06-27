@@ -263,6 +263,10 @@ const HoyPage = () => {
         } catch (error) {
             const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(error, 'Ha ocurrido un error reprogramando la subtarea.');
 
+            // US-07/08: Debug temporal para verificar detección de conflicto de capacidad, ya que el backend no lo está enviando correctamente
+            console.log('conflictPayload:', conflictPayload);
+            console.log('conflictMessage:', conflictMessage);
+
             if (isOverloadConflict) {
                 handleCloseReschedule();
 
@@ -402,7 +406,7 @@ const HoyPage = () => {
                 />
             </div>
             <div className="ml-auto relative group mb-3">
-                <button 
+                <button
                     type="button"
                     aria-label="Ver ayuda sobre cómo se ordenan las subtareas"
                     className="flex items-center gap-1.5 justify-center text-blue-500 text-sm font-semibold hover:text-blue-600 transition-colors">
@@ -430,11 +434,10 @@ const HoyPage = () => {
         if (parent.type === 'presentation') icon = '📊';
 
         return (
-            <div className={`rounded-2xl p-5 hover:shadow-sm transition-all shadow-sm mb-4 ${
-                isDailyConflict
-                    ? 'bg-red-50 border-2 border-red-600'
-                    : 'bg-white border border-zinc-300'
-            }`}>
+            <div className={`rounded-2xl p-5 hover:shadow-sm transition-all shadow-sm mb-4 ${isDailyConflict
+                ? 'bg-red-50 border-2 border-red-600'
+                : 'bg-white border border-zinc-300'
+                }`}>
                 <div className="flex justify-between items-start mb-4">
                     <div>
                         <Link to={`/actividad/${parent.id}`}>

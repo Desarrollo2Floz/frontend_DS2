@@ -50,10 +50,18 @@ function ActivityDetailPage() {
     message: '',
     onConfirm: null,
   })
+
   const [fieldErrors, setFieldErrors] = useState({}) // ← agregar esto
   const [showForm, setShowForm] = useState(false)
   const [editingSubtask, setEditingSubtask] = useState(null)
   const [deletingId, setDeletingId] = useState(null)
+
+  // US-07/08: Estado para el modal de conflicto de capacidad con opciones de resolución
+  const [conflictModal, setConflictModal] = useState({
+    isOpen: false,
+    subtask: null,
+    conflictData: null
+  });
   const [searchParams] = useSearchParams()
   const [isEditing, setIsEditing] = useState(searchParams.get('edit') === 'true') // ← detectar ?edit=true
 
@@ -205,15 +213,20 @@ function ActivityDetailPage() {
         onConfirm: null,
       })
     } else if (result?.error && result?.rawError) {
-      const { isOverloadConflict, conflictMessage, errorMessage } = parseOverloadError(result.rawError, 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.')
+      const { isOverloadConflict, conflictMessage, errorMessage, conflictPayload } = parseOverloadError(result.rawError, 'Ha ocurrido un error al crear la subtarea. Inténtelo de nuevo.')
       if (isOverloadConflict) {
-        const textMessage = typeof conflictMessage === 'object' ? conflictMessage?.message : conflictMessage;
-        setModalConfig({
+        // US-07/08: Mostrar modal de conflicto completo con opciones de resolución
+        // en lugar de un simple mensaje de error.
+        // Se guardan los datos originales para reintentarlos con la fecha alternativa.
+        setConflictModal({
           isOpen: true,
-          type: 'error',
-          title: '¡Cuidado! Límite de capacidad excedido',
-          message: conflictMessage || errorMessage,
-          onConfirm: null,
+          subtask: null,
+          conflictData: {
+            message: typeof conflictMessage === 'object' ? conflictMessage?.message : conflictMessage,
+            attemptedDate: null,
+            payload: conflictPayload,
+            originalData: data
+          }
         })
       } else {
         setModalConfig({
@@ -568,7 +581,6 @@ function ActivityDetailPage() {
           </div>
         )}
       </div>
-
       <Modal
         isOpen={modalConfig.isOpen}
         onClose={() => setModalConfig((prev) => ({ ...prev, isOpen: false }))}
@@ -577,6 +589,53 @@ function ActivityDetailPage() {
         type={modalConfig.type}
         onConfirm={modalConfig.onConfirm}
       />
+
+      {/* US-07/08: Modal de conflicto de capacidad diaria con opciones de resolución.
+          Se muestra cuando el usuario intenta crear o editar una subtarea que excede
+          el límite de horas diarias configurado. Ofrece mover a fecha alternativa o cancelar. */}
+      {conflictModal.isOpen && conflictModal.conflictData && (
+        <Modal
+          isOpen={conflictModal.isOpen}
+          onClose={() => setConflictModal({ isOpen: false, subtask: null, conflictData: null })}
+          title="¡Cuidado! Límite de capacidad excedido"
+          hideFooter={true}
+        >
+          <div className="flex flex-col gap-4">
+            {/* Mensaje explicando el conflicto */}
+            <p className="text-zinc-500 font-medium text-sm">
+              {conflictModal.conflictData.message}
+            </p>
+            <p className="text-zinc-500 font-medium text-sm">¿Cómo deseas resolverlo?</p>
+            <div className="flex flex-col gap-2">
+
+              {/* Botón para mover a la fecha alternativa sugerida por el backend */}
+              {conflictModal.conflictData.payload?.alternative_dates?.[0] && (
+                <button
+                  onClick={async () => {
+                    const altDate = conflictModal.conflictData.payload.alternative_dates[0];
+                    const originalData = conflictModal.conflictData.originalData;
+                    // US-07/08: Cerrar modal y reintentar con la fecha alternativa
+                    setConflictModal({ isOpen: false, subtask: null, conflictData: null });
+                    if (originalData) {
+                      await handleAddSubtask({ ...originalData, target_date: altDate });
+                    }
+                  }}
+                  className="bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
+                >
+                  Mover al {conflictModal.conflictData.payload.alternative_dates[0]}
+                </button>
+              )}
+              {/* Botón para cancelar y cerrar el modal */}
+              <button
+                onClick={() => setConflictModal({ isOpen: false, subtask: null, conflictData: null })}
+                className="bg-zinc-200 text-zinc-700 px-4 py-2.5 rounded-xl text-sm font-semibold hover:bg-zinc-300 transition-colors"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   )
 }
