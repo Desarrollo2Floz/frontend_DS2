@@ -48,20 +48,6 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
         }
 
         if (!isOverloadConflict) {
-            const lowerError = errorMessage.toLowerCase();
-            if (lowerError.includes("6 horas") ||
-                lowerError.includes("horas e intentas") ||
-                lowerError.includes("quedarás con") ||
-                lowerError.includes("quedarías con") ||
-                lowerError.includes("(límite") ||
-                lowerError.includes("planificadas")
-            ) {
-                isOverloadConflict = true;
-                conflictMessage = errorMessage;
-            }
-        }
-
-        if (!isOverloadConflict) {
             if (data.errors && typeof data.errors === 'object' && Object.keys(data.errors).length > 0) {
                 // Buscar el primer error que no sea overload_conflict
                 const firstKey = Object.keys(data.errors).find(k => k !== 'overload_conflict') || Object.keys(data.errors)[0];
@@ -86,6 +72,22 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
             } else if (data.message) {
                 // Fallback for "Error de validación" si no hay otro error específico
                 errorMessage = typeof data.message === 'string' ? data.message : data.message[0];
+            }
+        }
+
+        // --- Analizar si el mensaje extraído indica conflicto de sobrecarga ---
+        if (!isOverloadConflict) {
+            const lowerError = errorMessage.toLowerCase();
+            if (lowerError.includes("6 horas") ||
+                lowerError.includes("horas e intentas") ||
+                lowerError.includes("quedarás con") ||
+                lowerError.includes("quedarías con") ||
+                lowerError.includes("(límite") ||
+                lowerError.includes("planificadas")
+            ) {
+                isOverloadConflict = true;
+                conflictMessage = errorMessage;
+                conflictPayload = data;
             }
         }
     } else if (error.message) {

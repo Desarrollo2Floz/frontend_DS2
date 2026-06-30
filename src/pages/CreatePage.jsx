@@ -4,6 +4,7 @@ import { ChevronDown, Plus, X, ListTodo } from 'lucide-react'
 import { createActivity } from '../services/activityService'
 import Modal from '../components/Modal'
 import SubtaskForm from '../components/activities/SubtaskForm'
+import { parseOverloadError } from '../utils/errorUtils'
 
 import { getLocalTodayStr } from '../utils/dateUtils'
 
@@ -89,7 +90,7 @@ function CreatePage() {
       const payload = {
         title: form.title.trim(),
         type: form.type,
-        course: form.course.trim() || null,
+        course: form.course.trim(),
         due_date: form.due_date,
         weight: form.weight !== '' ? parseFloat(form.weight) : null,
         subtasks: subtasks // array con las subtareas a crear
@@ -97,27 +98,28 @@ function CreatePage() {
       await createActivity(payload)
       setShowSuccessModal(true) // mostrar modal en lugar de navegar directo
     } catch (err) {
-      // Intenta mostrar el mensaje específico que manda Django
-      const data = err.response?.data
-      if (err.response?.status === 409) {
-        // Parse the error message to get the date: "La fecha YYYY-MM-DD quedaría con..."
-        const match = data?.message?.match(/La fecha (\d{4}-\d{2}-\d{2})/)
+      const { isOverloadConflict, errorMessage } = parseOverloadError(err, 'Ocurrió un error al crear la actividad. Intenta de nuevo.')
+      if (isOverloadConflict) {
+        const match = errorMessage.match(/La fecha (\d{4}-\d{2}-\d{2})/)
         if (match) {
           const conflictDate = match[1]
           const conflictSubtask = subtasks.find(s => s.target_date === conflictDate)
           if (conflictSubtask) {
-            setServerError(`Reduce el número de horas o cambia la fecha sugerida de la subtarea "${conflictSubtask.title}" para poder crear la actividad.`)
+            setServerError(`No se puede crear la actividad: ${errorMessage}. Reduce las horas o cambia la fecha de la subtarea "${conflictSubtask.title}".`)
           } else {
-             setServerError('Reduce el número de horas o cambia las fechas de las subtareas para poder crear la actividad.')
+            setServerError(`No se puede crear la actividad: ${errorMessage}. Reduce las horas o cambia las fechas de las subtareas.`)
           }
         } else {
-           setServerError('Reduce el número de horas o cambia las fechas de las subtareas para poder crear la actividad.')
+          setServerError(`No se puede crear la actividad: ${errorMessage}`)
         }
-      } else if (data?.errors) {
-        // El backend mandó errores por campo, los mapeamos
-        setFieldErrors(data.errors)
       } else {
-        setServerError('Ocurrió un error al crear la actividad. Intenta de nuevo.')
+        const data = err.response?.data
+        if (data?.errors) {
+          // El backend mandó errores por campo, los mapeamos
+          setFieldErrors(data.errors)
+        } else {
+          setServerError(errorMessage)
+        }
       }
     } finally {
       setLoading(false)

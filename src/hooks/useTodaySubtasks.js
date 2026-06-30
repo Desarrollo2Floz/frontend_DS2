@@ -6,20 +6,22 @@ export const useTodaySubtasks = () => {
     const [data, setData] = useState({ overdue: [], today: [], upcoming: [] });
     const [filters, setFilters] = useState({
         course: '',
-        status: '',
-        days: '7',
+        status: 'all',
+        days: '',
     });
 
     const loadData = useCallback(async () => {
         setViewState('loading');
         try {
             const result = await getTodaySubtasks(filters);
+            const hasAnyItems = result.overdue.length > 0 
+                             || result.today.length > 0 
+                             || result.upcoming.length > 0;
+            const hasVisibleItems = filters.status === 'all'
+                ? [...result.overdue, ...result.today, ...result.upcoming].some((subtask) => subtask?.status !== 'done')
+                : hasAnyItems;
             setData(result);
-            if (result.overdue.length === 0 && result.today.length === 0 && result.upcoming.length === 0) {
-                setViewState('empty');
-            } else {
-                setViewState('success');
-            }
+            setViewState(hasVisibleItems ? 'success' : 'empty');
         } catch (error) {
             console.error('Error loading today subtasks:', error);
             setViewState('error');

@@ -8,6 +8,7 @@ import { createSubtask, updateSubtask } from '../services/subtaskService'
 import SubtaskCard from '../components/activities/SubtaskCard'
 import SubtaskForm from '../components/activities/SubtaskForm'
 import Modal from '../components/Modal'
+import { getLocalTodayStr } from '../utils/dateUtils'
 import { syncDailyCapacityConflictWithBackend } from '../utils/dailyCapacityConflict'
 import { parseOverloadError } from '../utils/errorUtils'
 import { calcActivityProgress } from '../utils/progressUtils'
@@ -28,9 +29,9 @@ const ACTIVITY_TYPES_OPTIONS = [
   { value: 'homework', label: 'Tarea' },
   { value: 'presentation', label: 'Presentación' },
 ]
-import { getLocalTodayStr } from '../utils/dateUtils'
 
 const todayStr = getLocalTodayStr()
+
 function ActivityDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()

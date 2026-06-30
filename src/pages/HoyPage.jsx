@@ -8,13 +8,12 @@ import { DAILY_CAPACITY_CONFLICT_STORAGE_KEY } from '../utils/dailyCapacityConfl
 
 
 // US-09: Ya no se usa el workaround de localStorage para notas, el backend las maneja directamente.
-// import { clearStoredPostponeNote, getStoredPostponeNote, setStoredPostponeNote } from '../utils/postponeNote';
 
 import Modal from '../components/Modal';
 import { UserCircle, AlertCircle, AlertTriangle, HelpCircle, Calendar, Clock, CheckCircle2, CalendarClock, Loader2, Coffee, RotateCcw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
-import StreakWidget from '../components/StreakWidget';
+import { StreakWidget } from '../components/StreakWidget';
 
 
 const ACTIVITY_TYPES_MAP = {
