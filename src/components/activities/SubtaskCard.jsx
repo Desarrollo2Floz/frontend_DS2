@@ -60,7 +60,7 @@ const SubtaskCard = ({ subtask, onEdit, onDelete, deleting, isDailyCapacityConfl
 
       {subtask.status === 'postponed' && Boolean(subtask.note && String(subtask.note).trim()) && (
         <div className="w-full px-4 py-3 rounded-lg bg-[#F8FAFC] border border-dashed border-zinc-300 text-zinc-500 text-sm font-semibold text-center whitespace-pre-wrap">
-          {String(postponedNote).trim()}
+          {String(subtask.note).trim()}
         </div>
       )}
 
