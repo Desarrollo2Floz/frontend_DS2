@@ -76,9 +76,7 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
         }
 
         // --- Analizar si el mensaje extraído indica conflicto de sobrecarga ---
-        if (!isOverloadConflict) {
-            const lowerError = errorMessage.toLowerCase();
-            if (lowerError.includes("6 horas") ||
+            const lowerError = String(errorMessage || '').toLowerCase();
                 lowerError.includes("horas e intentas") ||
                 lowerError.includes("quedarás con") ||
                 lowerError.includes("quedarías con") ||
