@@ -179,10 +179,10 @@ function CapacitySettings({ isExpanded }) {
     }
     return (
         <button
-            onClick={() => { }}
-            className="text-[#8B98A9] hover:text-white transition-colors p-2 rounded-xl hover:bg-[#1E2532] flex flex-col justify-center mt-auto mb-4 mx-auto"
-            title="Configurar Capacidad Diaria"
-        >
+            type="button"
+            disabled aria-disabled="true"
+            className="text-[#8B98A9] hover:text-white transition-colors p-2 rounded-xl hover:bg-[#1E2532] flex flex-col justify-center mt-auto mb-4 mx-auto disabled:opacity-50 cursor-not-allowed"
+            title="Configurar Capacidad Diaria">
             <Settings size={22} strokeWidth={1.5} />
         </button>
     );
