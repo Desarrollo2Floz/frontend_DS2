@@ -16,6 +16,9 @@ import { Link } from 'react-router-dom';
 import { useActivities } from '../hooks/useActivities';
 import { deleteActivity } from '../services/activityService';
 import { useAuth } from '../context/useAuth';
+import { getStoredDailyCapacityConflict, syncDailyCapacityConflictWithBackend } from '../utils/dailyCapacityConflict';
+import { StreakWidget } from '../components/StreakWidget';
+
 
 const ACTIVITY_TYPES_MAP = {
     'exam': 'Examen',
@@ -28,11 +31,26 @@ const ACTIVITY_TYPES_MAP = {
 const ActivityPage = () => {
     const { activities = [], viewState, reload } = useActivities();
     const { user, loading: authLoading } = useAuth();
+    const [dailyCapacityConflict, setDailyCapacityConflict] = React.useState(null);
     const [deletingId, setDeletingId] = React.useState(null)
     const [searchTerm, setSearchTerm] = React.useState('');
     const [itemsPerPage, setItemsPerPage] = React.useState(5);
     const [currentPage, setCurrentPage] = React.useState(1);
     const [statusFilter, setStatusFilter] = React.useState('all');
+
+     React.useEffect(() => {
+        const loadStored = () => {
+            setDailyCapacityConflict(getStoredDailyCapacityConflict())
+        }
+
+        const onConflictEvent = (evt) => {
+            setDailyCapacityConflict(evt?.detail || null)
+        }
+
+        loadStored()
+        window.addEventListener('daily-capacity-conflict', onConflictEvent)
+        return () => window.removeEventListener('daily-capacity-conflict', onConflictEvent)
+    }, [])
 
     const displayName = (() => {
         const fullName = `${user?.name ?? ''} ${user?.last_name ?? ''}`.trim();
@@ -46,6 +64,7 @@ const ActivityPage = () => {
         try {
             await deleteActivity(id)
             reload() // Recarga la lista después de eliminar
+            await syncDailyCapacityConflictWithBackend()
         } catch {
             alert('Ocurrió un error al eliminar la actividad. Intenta de nuevo.')
         } finally {
@@ -115,6 +134,9 @@ const ActivityPage = () => {
                 </div>
             </div>
             <div className="hidden md:flex flex-col items-end gap-3">
+                <div>
+                    <StreakWidget />
+                </div>
                 <div className="relative group">
                     <button className="flex items-center gap-1.5 justify-center text-blue-500 text-sm font-semibold hover:text-blue-600 transition-colors">
                         <HelpCircle size={16} />
