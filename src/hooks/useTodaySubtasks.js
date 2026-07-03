@@ -17,7 +17,7 @@ export const useTodaySubtasks = () => {
             const hasAnyItems = result.overdue.length > 0 
                              || result.today.length > 0 
                              || result.upcoming.length > 0;
-            const hasVisibleItems = filters.status === 'all'
+            const hasVisibleItems = !filters.status
                 ? [...result.overdue, ...result.today, ...result.upcoming].some((subtask) => subtask?.status !== 'done')
                 : hasAnyItems;
             setData(result);
