@@ -78,6 +78,7 @@ api.interceptors.response.use(
 
             processQueue(null, newAccessToken);
 
+            originalRequest.headers = originalRequest.headers || {};
             originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
             return api(originalRequest);
         } catch (refreshError) {
