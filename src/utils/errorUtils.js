@@ -76,18 +76,19 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
         }
 
         // --- Analizar si el mensaje extraído indica conflicto de sobrecarga ---
-            const lowerError = String(errorMessage || '').toLowerCase();
-                lowerError.includes("horas e intentas") ||
-                lowerError.includes("quedarás con") ||
-                lowerError.includes("quedarías con") ||
-                lowerError.includes("(límite") ||
-                lowerError.includes("planificadas")
-            ) {
-                isOverloadConflict = true;
-                conflictMessage = errorMessage;
-                conflictPayload = data;
-            }
+        const lowerError = String(errorMessage || '').toLowerCase();
+        if (
+            lowerError.includes("horas e intentas") ||
+            lowerError.includes("quedarás con") ||
+            lowerError.includes("quedarías con") ||
+            lowerError.includes("(límite") ||
+            lowerError.includes("planificadas")
+        ) {
+            isOverloadConflict = true;
+            conflictMessage = errorMessage;
+            conflictPayload = data;
         }
+    }
     } else if (error.message) {
         errorMessage = error.message;
     }
