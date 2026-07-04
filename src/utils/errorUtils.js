@@ -88,7 +88,6 @@ export const parseOverloadError = (error, defaultMessage = 'Ha ocurrido un error
             conflictMessage = errorMessage;
             conflictPayload = data;
         }
-    }
     } else if (error.message) {
         errorMessage = error.message;
     }
